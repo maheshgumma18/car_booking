@@ -1,24 +1,33 @@
 const Service = require("../models/Services");
 
 
+
 exports.createService = async (req, res) => {
   try {
-    const { name, description, price, image } = req.body;
+    const { name, description, price } = req.body;
 
-    const newService = new Service({
+    // Check if the file is provided
+    if (!req.file) {
+      return res.status(400).json({ result: "Error creating service", error: "Image is required" });
+    }
+
+    // Create new service
+    const service = new Service({
       name,
       description,
       price,
-      image,
+      image: req.file.path, // Save the file path from req.file
     });
 
-    await newService.save();
-    return res.status(201).json({ result: "Service created successfully", service: newService });
+    // Save service to database
+    await service.save();
+
+    return res.status(201).json({ result: "Service created successfully", service });
   } catch (error) {
-    console.error("Error creating service:", error);
-    return res.status(400).json({ result: "Error creating service", error: error.message });
+    return res.status(400).json({ result: "Error creating service", error });
   }
 };
+
 
 // Get all services
 exports.getAllServices = async (req, res) => {
