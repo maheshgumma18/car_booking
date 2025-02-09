@@ -5,7 +5,16 @@ const UserSchema = new mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
+    phoneNumber:{type:String},
+    Address:{type:String},
+    profilePicture:{type:String},
     role: { type: String, enum: ['customer', 'admin'], default: 'customer' },
+    vehicles: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Vehicle', 
+        },
+      ],
 });
 
 

@@ -1,41 +1,112 @@
 const Booking = require('../models/Booking');
-const Car = require('../models/Car');
+const Service = require('../models/Services');
+const User = require('../models/User');
+const Vehicle = require('../models/Vehicle');
 
-// Create Booking
+// Create a new booking
 exports.createBooking = async (req, res) => {
-    try {
-        const { carId, startTime, endTime } = req.body;
+  try {
+    const { userId, vehicleId, services, startTime, endTime, notes } = req.body;
 
-        const car = await Car.findById(carId);
-        if (!car || !car.availability) {
-            return res.status(400).json({ message: 'Car not available' });
-        }
-
-        const totalPrice = Math.ceil((new Date(endTime) - new Date(startTime)) / 3600000) * car.rentPerHour;
-
-        const booking = await Booking.create({
-            user: req.user._id,
-            car: car._id,
-            startTime,
-            endTime,
-            totalPrice,
-        });
-
-        car.availability = false;
-        await car.save();
-
-        res.status(201).json(booking);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+    // Validate input
+    if (!userId || !vehicleId || !services || !startTime || !endTime) {
+      return res.status(400).json({ result: 'Missing required fields' });
     }
+
+    // Validate user and vehicle existence
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ result: 'User not found' });
+
+    const vehicle = await Vehicle.findById(vehicleId);
+    if (!vehicle) return res.status(404).json({ result: 'Vehicle not found' });
+
+    // Validate services and calculate total price
+    let totalPrice = 0;
+    for (let serviceId of services) {
+      const service = await Service.findById(serviceId);
+      if (!service) {
+        return res.status(404).json({ result: `Service with ID ${serviceId} not found` });
+      }
+      totalPrice += service.price;
+    }
+
+    // Create a new booking
+    const booking = new Booking({
+      user: userId,
+      vehicle: vehicleId,
+      services,
+      startTime: new Date(startTime),
+      endTime: new Date(endTime),
+      totalPrice,
+      notes,
+    });
+
+    await booking.save();
+
+    return res.status(201).json({
+      result: 'Booking created successfully',
+      booking,
+    });
+  } catch (error) {
+    console.error('Error creating booking:', error);
+    return res.status(500).json({ result: 'Internal Server Error', error: error.message });
+  }
 };
 
-// Get Bookings
-exports.getBookings = async (req, res) => {
-    try {
-        const bookings = await Booking.find({ user: req.user._id }).populate('car');
-        res.status(200).json(bookings);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+// Get all bookings for a user
+exports.getUserBookings = async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    const bookings = await Booking.find({ user: userId })
+      .populate('services')
+      .populate('vehicle')
+      .exec();
+
+    return res.status(200).json({ result: 'Success', bookings });
+  } catch (error) {
+    console.error('Error fetching bookings:', error);
+    return res.status(500).json({ result: 'Internal Server Error', error: error.message });
+  }
+};
+
+// Update booking status
+exports.updateBookingStatus = async (req, res) => {
+  try {
+    const { bookingId, status } = req.body;
+
+    if (!['pending', 'in-progress', 'completed', 'cancelled'].includes(status)) {
+      return res.status(400).json({ result: 'Invalid booking status' });
     }
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ result: 'Booking not found' });
+    }
+
+    booking.status = status;
+    await booking.save();
+
+    return res.status(200).json({ result: 'Booking status updated successfully', booking });
+  } catch (error) {
+    console.error('Error updating booking status:', error);
+    return res.status(500).json({ result: 'Internal Server Error', error: error.message });
+  }
+};
+
+// Cancel a booking
+exports.cancelBooking = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+
+    const booking = await Booking.findByIdAndDelete(bookingId);
+    if (!booking) {
+      return res.status(404).json({ result: 'Booking not found' });
+    }
+
+    return res.status(200).json({ result: 'Booking cancelled successfully' });
+  } catch (error) {
+    console.error('Error cancelling booking:', error);
+    return res.status(500).json({ result: 'Internal Server Error', error: error.message });
+  }
 };
